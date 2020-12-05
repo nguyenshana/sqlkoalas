@@ -2,4 +2,4 @@
 
 JFreeChart and the JDBC connector are required dependencies.
 
-App.java comprises the full program thus far.
+Run main in App.java.
