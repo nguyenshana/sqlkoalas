@@ -3,6 +3,7 @@ package test_dep;
 import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
 
 import org.jfree.chart.ChartFactory;
 import org.jfree.chart.ChartFrame;
@@ -15,8 +16,10 @@ import org.jfree.data.jdbc.JDBCPieDataset;
 import org.jfree.data.jdbc.JDBCXYDataset;
 
 import java.awt.event.*;
+import java.sql.CallableStatement;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -25,7 +28,7 @@ public class App extends JFrame {
 	
 	public static final int WIDTH = 1280;
 	public static final int HEIGHT = WIDTH/16 * 9; //720
-	private static Connection conn = null;
+	public static Connection conn = null;
 	
 	public App() {
 		super("Healthy Koalas");
@@ -33,8 +36,14 @@ public class App extends JFrame {
 		setLayout(null);
 		setVisible(true);
 		JLabel l1 = new JLabel("Welcome to Healthy Koalas. Choose a statistic to graph.");
+		JLabel l2 = new JLabel("Plot General Information");
+		JLabel l3 = new JLabel("Plot Own Information");
 		l1.setBounds(WIDTH/3, 0, WIDTH, 100);
+		l2.setBounds(WIDTH/3, 25, WIDTH, 100);
+		l3.setBounds(WIDTH/3, 125, WIDTH, 100);
 		add(l1);
+		add(l2);
+		add(l3);
 		JButton b = new JButton("Graph 1");
 		b.setBounds(50, 100, 200, 50);
 		add(b);
@@ -140,8 +149,8 @@ public class App extends JFrame {
 		b3.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent e) {
 					JDBCXYDataset jds = createXYDataset("SELECT totalFat, bloodPressure\r\n"
-							+ "FROM Diet, Examination \r\n"
-							+ "WHERE Diet.uID = Examination.uID and bloodPressure is not null and totalFat is not null");
+							+ "FROM Diet, Examinations \r\n"
+							+ "WHERE Diet.uID = Examinations.uID and bloodPressure is not null and totalFat is not null");
 					JFreeChart chart = ChartFactory.createScatterPlot("Total fat intake vs. blood pressure",
 					           "totalFat", "bloodPressure", jds);
 					ChartFrame res = new ChartFrame("Graph 3", chart);
@@ -159,6 +168,8 @@ public class App extends JFrame {
 				*/
 			}
 		});
+
+		
 	}
 	
 	private static JDBCXYDataset createXYDataset(String query) {
@@ -196,8 +207,212 @@ public class App extends JFrame {
 		}
 		return null;
 	}
+	
+	public static boolean isAdmin(int id) {
+		// Do some querying here to check if id is admin
+		Statement stmt = null;
+		String query = "SELECT * FROM Accounts where uID = " + id + " and isAdmin = 1";
+		try {
+			stmt = conn.createStatement();
+			ResultSet rs = stmt.executeQuery(query);
+			while (rs.next()) {
+				return true;
+			}
+			
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+		return false;
+	}
     public static void main(String[] args) {
-    	new App();
+    	App ref1 = new App();
+		JButton login = new JButton("Sign in");
+		login.setBounds(300, 600, 200, 50);
+		ref1.add(login);
+		int[] lastLoggedInAs = {0};
+		
+		login.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent e) {
+                LoginDialog loginDlg = new LoginDialog(ref1);
+                loginDlg.setVisible(true);
+                // if logon successfully
+                if(loginDlg.isSucceeded()){
+                    login.setText("Hi " + loginDlg.getUsername() + "!");
+                    lastLoggedInAs[0] = Integer.parseInt(loginDlg.getUsername());
+                }
+            }
+		});
+		
+		JButton b4 = new JButton("Graph 4");
+		b4.setBounds(175, 200, 200, 50);
+		ref1.add(b4);
+		b4.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+					JDBCCategoryDataset jds = createCategoricalDataset("SELECT uID, protein, carbohydrate, totalSugars, dietaryFiber, totalFat, totalSaturatedFattyAcids, cholesterol\r\n"
+							+ "FROM Diet\r\n"
+							+ "WHERE uID = \r\n"
+							+ "" + lastLoggedInAs[0]);
+					JFreeChart chart = ChartFactory.createBarChart("My Diet Information",
+					           "uID", "grams", jds);
+					ChartFrame res = new ChartFrame("Graph 4", chart);
+					res.setSize(WIDTH, HEIGHT);
+					res.setVisible(true);
+		
+			}
+		});
+		
+		JButton b5 = new JButton("Graph 5");
+		b5.setBounds(400, 200, 200, 50);
+		ref1.add(b5);
+		b5.addActionListener(new ActionListener() {
+			public void actionPerformed(ActionEvent e) {
+					JDBCCategoryDataset jds = createCategoricalDataset("SELECT genericDrugName, drugUsePeriod     \r\n"
+							+ "FROM Medications\r\n"
+							+ "WHERE uID =\r\n"
+							+ "" + lastLoggedInAs[0]);
+					JFreeChart chart = ChartFactory.createBarChart("My Drug Use Info",
+					           "Medication", "time (in days)", jds);
+					ChartFrame res = new ChartFrame("Graph 5", chart);
+					res.setSize(WIDTH, HEIGHT);
+					res.setVisible(true);
+		
+			}
+		});
+		JButton register = new JButton("Register");
+		register.setBounds(600, 600, 200, 50);
+		ref1.add(register);
+		
+		register.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent e) {
+                RegisterDialog registerDlg = new RegisterDialog(ref1);
+                registerDlg.setVisible(true);
+            }
+		});
+		
+		// Look up own data
+		
+		JButton lookup = new JButton("View Own Data");
+		lookup.setBounds(50, 600, 200, 50);
+		ref1.add(lookup);
+		
+		lookup.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent e) {
+            	// Do querying and stuff here
+            	
+            	String query = "SELECT A.uID, examStatus, gender, age, weight, bloodPressure, totalFat, totalCholesterol\r\n"
+            			+ "FROM Accounts A\r\n"
+            			+ "LEFT JOIN Demographics D ON D.uID = A.uID\r\n"
+            			+ "LEFT JOIN Examinations E ON E.uID = A.uID\r\n"
+            			+ "LEFT JOIN Diet T ON T.uID = A.uID\r\n"
+            			+ "LEFT JOIN Labs L ON L.uID = A.uID\r\n"
+            			+ "WHERE A.uID = ?;\r\n"
+            			+ "";
+            	try {
+                	PreparedStatement pstmt = conn.prepareStatement(query);
+                	pstmt.setInt(1, lastLoggedInAs[0]);   
+                	ResultSet rs = pstmt.executeQuery();
+                	//System.out.println("works here");
+                	if (lastLoggedInAs[0] == 0) {
+                        JOptionPane.showMessageDialog(ref1,
+                                "Not logged in!",
+                                "Your Info",
+                                JOptionPane.ERROR_MESSAGE);
+                	}
+                	while (rs.next()) {
+                        int id = rs.getInt("uID"); 
+                        int age = rs.getInt("age"); 
+                        int totalFat = rs.getInt("totalFat");
+                        int cholesterol = rs.getInt("totalCholesterol");
+                        int weight = rs.getInt("weight");
+                        //System.out.println("uID: " + id + "age: " + age + "fat: " + totalFat + "cholesterol: " + cholesterol + "weight: " + weight); 
+                        JOptionPane.showMessageDialog(ref1,
+                                "Hi " + id + "\nHere's your info: " + "\nAge: " + age + "\nFat: " + totalFat + "\nCholesterol: " + cholesterol + "\nWeight: " + weight,
+                                "Your Info",
+                                JOptionPane.INFORMATION_MESSAGE);
+                        
+                	}
+            	}
+            	catch (SQLException se) {
+            		se.printStackTrace();
+            	}
+            	
+            }
+		});
+		
+		// Edit data (as user)
+		
+		JButton edit = new JButton("Edit Existing Medications");
+		edit.setBounds(50, 400, 200, 50);
+		ref1.add(edit);
+		edit.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent e) {
+            	// Do querying and stuff here
+                EditDialog editDlg = new EditDialog(ref1, lastLoggedInAs[0]);
+                editDlg.setVisible(true);
+            	
+            }
+		});
+		
+		// Add/Delete medications (as admin)
+		
+		JButton addMedicine = new JButton("Add/Delete Medications");
+		addMedicine.setBounds(300, 400, 200, 50);
+		ref1.add(addMedicine);
+		addMedicine.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent e) {
+            	// Do querying and stuff here
+            	if (!isAdmin(lastLoggedInAs[0])) {
+                    JOptionPane.showMessageDialog(ref1,
+                            "You are not logged in as admin!",
+                            "Add/Delete Medications",
+                            JOptionPane.ERROR_MESSAGE);
+            	}
+            	else {
+                    AddDialog addDlg = new AddDialog(ref1, lastLoggedInAs[0]);
+                    addDlg.setVisible(true);
+            	}
+            }
+		});
+		
+		// Archive old users
+		JButton archive = new JButton("Archive");
+		archive.setBounds(550, 400, 200, 50);
+		ref1.add(archive);
+		archive.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent e) {
+            	// Do querying and stuff here
+            	if (!isAdmin(lastLoggedInAs[0])) {
+                    JOptionPane.showMessageDialog(ref1,
+                            "You are not logged in as admin!",
+                            "Archive",
+                            JOptionPane.ERROR_MESSAGE);
+            	}
+            	else {
+            		ArchiveDialog archiveDlg = new ArchiveDialog(ref1);
+            		archiveDlg.setVisible(true);
+            	}
+            }
+		});
+		
+		// List Medications
+		JButton listMeds = new JButton("List Medications");
+		listMeds.setBounds(800, 400, 200, 50);
+		ref1.add(listMeds);
+		listMeds.addActionListener(new ActionListener() {
+            public void actionPerformed(ActionEvent e) {
+            	// Do querying and stuff here
+            	if (!isAdmin(lastLoggedInAs[0])) {
+                    JOptionPane.showMessageDialog(ref1,
+                            "You are not logged in as admin!",
+                            "List Medications",
+                            JOptionPane.ERROR_MESSAGE);
+            	}
+            	else {
+            		ListMedsDialog listDlg = new ListMedsDialog(ref1);
+            		listDlg.setVisible(true);
+            	}
+            }
+		});
     	// JDBC
         try {
             conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/healthykoalas?serverTimezone=UTC","root", "bronyderp123");
